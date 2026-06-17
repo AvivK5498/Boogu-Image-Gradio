@@ -15,8 +15,11 @@ from app.generate import GenRequest, run
 
 log = logging.getLogger(__name__)
 
-# Loggers whose INFO output is the useful inference status (downloads, build, "Wrote ...").
-_LOG_SOURCES = ("app", "diffusers", "transformers")
+# Loggers shown in the panel, with per-source levels. `app` carries our status + live step count;
+# `transformers` is pinned to ERROR to drop the repetitive "Kwargs passed to processor.__call__"
+# warning that otherwise floods the panel.
+_LOG_LEVELS = {"app": logging.INFO, "diffusers": logging.INFO, "transformers": logging.ERROR}
+_LOG_SOURCES = tuple(_LOG_LEVELS)
 
 
 class _BufferHandler(logging.Handler):
@@ -35,10 +38,10 @@ def _attach_log_capture():
     buf: collections.deque = collections.deque(maxlen=500)
     handler = _BufferHandler(buf)
     handler.setFormatter(logging.Formatter("%(asctime)s  %(message)s", "%H:%M:%S"))
-    for name in _LOG_SOURCES:
+    for name, level in _LOG_LEVELS.items():
         lg = logging.getLogger(name)
         lg.addHandler(handler)
-        lg.setLevel(logging.INFO)
+        lg.setLevel(level)
     return buf, handler
 
 

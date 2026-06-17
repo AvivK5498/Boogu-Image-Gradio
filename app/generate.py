@@ -39,6 +39,55 @@ class GenRequest:
     image_paths: list[str] = field(default_factory=list)   # edit: 1+ input images
 
 
+class _StepBar:
+    """Drop-in for diffusers' `progress_bar` that logs each denoising step. The pipeline's own
+    tqdm bar writes to stderr and never reaches the UI log panel; logging each `.update()` via the
+    `app` logger surfaces a live step count there."""
+
+    def __init__(self, total, iterable=None):
+        self.total = total
+        self.iterable = iterable
+        self.n = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def __iter__(self):
+        for x in self.iterable or []:
+            yield x
+            self.update()
+
+    def update(self, k=1):
+        self.n += k
+        log.info("diffusion step %d/%s", self.n, self.total)
+
+    # no-op tqdm API the pipeline may touch
+    def set_description(self, *a, **k):
+        pass
+
+    def set_postfix(self, *a, **k):
+        pass
+
+    def close(self):
+        pass
+
+
+def _install_step_logger(pipe) -> None:
+    """Replace the resident pipeline's progress bar with one that logs steps (idempotent)."""
+    def progress_bar(iterable=None, total=None):
+        if total is None and iterable is not None:
+            try:
+                total = len(iterable)
+            except TypeError:
+                total = None
+        return _StepBar(total, iterable)
+
+    pipe.progress_bar = progress_bar
+
+
 def _load_image(path: str):
     """Load an Edit input image as RGB (exif-transposed), as Boogu's inference.py does. The
     pipeline resizes inputs internally (max_input_image_pixels), so we don't pre-crop."""
@@ -78,6 +127,7 @@ def run(req: GenRequest) -> str:
     import torch
 
     pipe = MANAGER.get(req.variant)
+    _install_step_logger(pipe)
     gen = torch.Generator(device="cuda").manual_seed(int(req.seed))
 
     kwargs: dict = {

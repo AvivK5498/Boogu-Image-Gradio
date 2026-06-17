@@ -60,15 +60,16 @@ VARIANT_REGISTRY: dict[str, Variant] = {
 DEFAULT_VARIANT = "turbo"
 
 # Step-caching accelerators (built into the `boogu` package; no extra deps). They reuse transformer
-# outputs across adjacent steps -> faster multi-step (Base/Edit) gens. Mutually exclusive. TaylorSeer
-# is training-free and generally safe; TeaCache is threshold-tunable (higher = more skipping/faster,
-# lower quality). Ignored for Turbo (its 4-step DMD loop doesn't benefit). See pipelines/generate.
+# outputs across adjacent steps for faster multi-step (Base/Edit) gens. Mutually exclusive. We use
+# the SINGLE-STREAM variants only: the `*_for_all_layers` variants cache derivatives for every layer
+# and OOM a 141GB H200 on this 10B model. Default OFF — the plain path is already ~2.5s/step at 1024²
+# (FA fused). These remain opt-in/experimental and still raise memory. Ignored for Turbo (4-step DMD).
 ACCELERATION = {
-    "taylorseer": "TaylorSeer (fast, training-free) — recommended",
-    "teacache": "TeaCache (faster, may soften detail)",
-    "none": "None (full compute every step)",
+    "none": "None — full compute (default, ~2.5s/step @1024²)",
+    "taylorseer": "TaylorSeer (experimental, single-stream)",
+    "teacache": "TeaCache (experimental, single-stream)",
 }
-DEFAULT_ACCELERATION = "taylorseer"
+DEFAULT_ACCELERATION = "none"
 TEACACHE_REL_L1_THRESH = 0.15
 
 

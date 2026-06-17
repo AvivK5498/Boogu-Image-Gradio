@@ -83,16 +83,15 @@ def _apply_acceleration(pipe, mode: str) -> None:
     t = pipe.transformer
     pipe.enable_taylorseer = False
     t.enable_taylorseer = False
-    t.enable_taylorseer_for_all_layers = False
+    t.enable_taylorseer_for_all_layers = False   # all-layers caches every layer's derivatives -> OOM
     t.enable_teacache = False
     t.enable_teacache_for_all_layers = False
     if mode == "taylorseer":
+        # single-stream only (no all-layers) to bound memory
         pipe.enable_taylorseer = True
         t.enable_taylorseer = True
-        t.enable_taylorseer_for_all_layers = True
     elif mode == "teacache":
         t.enable_teacache = True
-        t.enable_teacache_for_all_layers = True
         t.teacache_rel_l1_thresh = config.TEACACHE_REL_L1_THRESH
     log.info("Acceleration: %s", mode)
 

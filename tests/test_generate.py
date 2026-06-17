@@ -35,15 +35,6 @@ def test_apply_acceleration_teacache_single_stream():
     assert pipe.enable_taylorseer is False
 
 
-def test_input_pixel_budget_splits_across_images():
-    one = generate._input_pixel_budget(1)
-    assert one == config.EDIT_MAX_INPUT_PIXELS                 # single image gets the full ~1MP
-    assert generate._input_pixel_budget(2) == config.EDIT_MAX_INPUT_PIXELS // 2
-    assert generate._input_pixel_budget(4) == config.EDIT_MAX_INPUT_PIXELS // 4
-    # many images floor at the minimum so each stays usable
-    assert generate._input_pixel_budget(1000) == config.EDIT_MIN_INPUT_PIXELS
-
-
 def test_default_acceleration_is_taylorseer():
     # Single-stream TaylorSeer: measured ~1.5x faster at ~56GB on the H200 (OOM-safe, no offload).
     assert config.DEFAULT_ACCELERATION == "taylorseer"

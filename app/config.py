@@ -71,15 +71,6 @@ ACCELERATION = {
     "teacache": "TeaCache (single-stream, aggressive skip)",
 }
 DEFAULT_ACCELERATION = "taylorseer"
-
-# Edit conditioning-image budget. Each reference image becomes reference latent tokens the
-# transformer attends over every step; attention is ~quadratic in token count, so large or multiple
-# inputs make Edit very slow. Boogu's pipeline default is 2048x2048 (4MP) PER image. We cap the TOTAL
-# reference budget to ~1MP and split it across however many images are supplied (the pipeline resizes
-# down preserving aspect), so adding images doesn't blow up per-step cost. Output is ~0.6-1MP anyway.
-EDIT_MAX_INPUT_PIXELS = 1024 * 1024
-EDIT_MAX_INPUT_SIDE = 1024
-EDIT_MIN_INPUT_PIXELS = 256 * 256   # floor so heavily-split budgets stay usable
 # TeaCache only skips when accumulated rescaled-L1 distance exceeds this; 0.05 never skips (no
 # speedup). ~0.35 gives ~1.5x at some quality risk. TaylorSeer needs no threshold.
 TEACACHE_REL_L1_THRESH = 0.35

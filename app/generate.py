@@ -109,6 +109,12 @@ def _install_step_logger(pipe) -> None:
     pipe.progress_bar = progress_bar
 
 
+def _input_pixel_budget(num_images: int) -> int:
+    """Per-image reference-pixel cap: split the total ~1MP budget across N conditioning images so
+    total reference tokens (and per-step attention cost) stay bounded as image count grows."""
+    return max(config.EDIT_MIN_INPUT_PIXELS, config.EDIT_MAX_INPUT_PIXELS // max(1, num_images))
+
+
 def _load_image(path: str):
     """Load an Edit input image as RGB (exif-transposed), as Boogu's inference.py does. The
     pipeline resizes inputs internally (max_input_image_pixels), so we don't pre-crop."""
@@ -164,8 +170,14 @@ def run(req: GenRequest) -> str:
     if req.negative_prompt:
         kwargs["negative_instruction"] = req.negative_prompt
     if variant.task == "edit":
-        kwargs["input_images"] = [_load_image(p) for p in req.image_paths]
+        images = [_load_image(p) for p in req.image_paths]
+        kwargs["input_images"] = images
         kwargs["image_guidance_scale"] = float(req.image_guidance_scale)
+        # Cap reference resolution so big/multiple inputs don't explode per-step attention cost.
+        kwargs["max_input_image_pixels"] = _input_pixel_budget(len(images))
+        kwargs["max_input_image_side_length"] = config.EDIT_MAX_INPUT_SIDE
+        log.info("Edit: %d input image(s), ref cap %d px/img, side %d",
+                 len(images), kwargs["max_input_image_pixels"], config.EDIT_MAX_INPUT_SIDE)
 
     log.info("Generating (%s): %d steps, %dx%d, seed %d, text_cfg=%s, keys=%s",
              req.variant, steps, req.width, req.height, req.seed, text_cfg, sorted(kwargs))

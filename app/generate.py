@@ -94,10 +94,8 @@ def run(req: GenRequest) -> str:
         kwargs["input_images"] = [_load_image(p) for p in req.image_paths]
         kwargs["image_guidance_scale"] = float(req.image_guidance_scale)
 
-    # Drop anything the pipeline doesn't accept (defensive against signature differences).
-    kwargs = {k: v for k, v in kwargs.items() if k in params}
-    log.info("Generating (%s): %d steps, %dx%d, seed %d, kwargs=%s",
-             req.variant, steps, req.width, req.height, req.seed, sorted(kwargs))
+    log.info("Generating (%s): %d steps, %dx%d, seed %d, text_cfg=%s, keys=%s",
+             req.variant, steps, req.width, req.height, req.seed, text_cfg, sorted(kwargs))
 
     with torch.inference_mode():
         result = pipe(**kwargs)

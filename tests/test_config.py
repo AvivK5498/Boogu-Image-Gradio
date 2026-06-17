@@ -11,11 +11,12 @@ def test_registry_has_base_turbo_edit():
     assert config.DEFAULT_VARIANT in config.VARIANT_REGISTRY
 
 
-def test_turbo_is_fast_few_step_cfg0():
+def test_turbo_is_fast_few_step():
     turbo = config.VARIANT_REGISTRY["turbo"]
     assert turbo.fast is True
     assert turbo.default_steps == 4
-    assert turbo.default_cfg == 0.0
+    # DMD student path needs guidance == 1.0 (1.0 = no CFG); the HF card's "0.0" is misleading.
+    assert turbo.default_cfg == 1.0
     # Base/Edit are full multi-step with CFG.
     assert config.VARIANT_REGISTRY["base"].fast is False
     assert config.VARIANT_REGISTRY["edit"].fast is False

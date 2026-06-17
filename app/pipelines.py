@@ -1,11 +1,13 @@
 """PipelineManager — owns the single resident diffusers pipeline.
 
-Loads a Boogu variant via the official diffusers route:
-`DiffusionPipeline.from_pretrained(local_path, dtype=bf16, trust_remote_code=True)` → returns the
-repo's custom BooguImagePipeline / BooguImageTurboPipeline. Rebuilt only when the selected variant
-changes (one model resident on the single GPU).
+Loads a Boogu variant via the concrete pipeline class from the `boogu` package (installed by
+setup.sh from github.com/boogu-project/Boogu-Image): `BooguImageTurboPipeline` for the distilled
+Turbo variant, `BooguImagePipeline` for Base/Edit. The class is required because the model_index's
+`_class_name` is NOT registered in the `diffusers` namespace — `DiffusionPipeline.from_pretrained`
+can't find it. The mllm/transformer/vae auto-load from the snapshot via `trust_remote_code`.
+Rebuilt only when the selected variant changes (one model resident on the single GPU).
 
-All torch / diffusers imports are lazy so this module imports cleanly under test.
+All torch / boogu imports are lazy so this module imports cleanly under test.
 """
 
 from __future__ import annotations
@@ -31,21 +33,22 @@ class PipelineManager:
             return self._pipeline
         self._free()
         local_path = models.ensure_variant(variant_id)
-        log.info("Building DiffusionPipeline for '%s' from %s", variant_id, local_path)
-        self._pipeline = self._build(local_path)
+        log.info("Building pipeline for '%s' from %s", variant_id, local_path)
+        self._pipeline = self._build(variant_id, local_path)
         self._variant = variant_id
         return self._pipeline
 
-    def _build(self, local_path: str):
+    def _build(self, variant_id: str, local_path: str):
         import torch
-        from diffusers import DiffusionPipeline
 
         # Some Boogu modules read os.getenv("device") at construction to decide whether to use
         # CUDA/Flash-Attention operators (per the inference guide). Set it before loading.
         os.environ.setdefault("device", "cuda:0")
-        pipe = DiffusionPipeline.from_pretrained(
-            local_path, dtype=torch.bfloat16, trust_remote_code=True
-        )
+        if config.VARIANT_REGISTRY[variant_id].fast:
+            from boogu.pipelines.boogu.pipeline_boogu_turbo import BooguImageTurboPipeline as Cls
+        else:
+            from boogu.pipelines.boogu.pipeline_boogu import BooguImagePipeline as Cls
+        pipe = Cls.from_pretrained(local_path, torch_dtype=torch.bfloat16, trust_remote_code=True)
         pipe.to("cuda")
         return pipe
 

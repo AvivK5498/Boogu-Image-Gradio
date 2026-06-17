@@ -19,11 +19,14 @@ from app.pipelines import MANAGER
 
 log = logging.getLogger(__name__)
 
-# Candidate kwarg spellings the Boogu pipelines may use (CLI uses the *_guidance_scale names;
-# vanilla diffusers uses guidance_scale / true_cfg_scale). We pass whichever exists.
+# Boogu's pipeline __call__ uses `instruction`/`negative_instruction`/`input_images` and the
+# *_guidance_scale names (confirmed by reading boogu/pipelines/boogu/pipeline_boogu.py). We still
+# resolve against the live signature so a future rename doesn't silently drop an argument.
 _TEXT_GUIDANCE_NAMES = ("text_guidance_scale", "true_cfg_scale", "guidance_scale")
 _IMAGE_GUIDANCE_NAMES = ("image_guidance_scale", "image_cfg_scale")
-_IMAGE_INPUT_NAMES = ("image", "images", "input_images")
+_IMAGE_INPUT_NAMES = ("input_images", "image", "images")
+_PROMPT_NAMES = ("instruction", "prompt")
+_NEGATIVE_NAMES = ("negative_instruction", "negative_prompt")
 
 
 @dataclass
@@ -51,12 +54,12 @@ def _first_supported(params: set[str], names: tuple[str, ...]) -> str | None:
     return next((n for n in names if n in params), None)
 
 
-def _fit_image(path: str, width: int, height: int):
-    """Cover-resize + center-crop an input image to exactly width×height (preserves aspect)."""
+def _load_image(path: str):
+    """Load an Edit input image as RGB (exif-transposed), as Boogu's inference.py does. The
+    pipeline resizes inputs internally (max_input_image_pixels), so we don't pre-crop."""
     from PIL import Image, ImageOps
 
-    img = Image.open(path).convert("RGB")
-    return ImageOps.fit(img, (width, height), method=Image.LANCZOS)
+    return ImageOps.exif_transpose(Image.open(path).convert("RGB"))
 
 
 def _output_path(req: GenRequest) -> str:
@@ -93,18 +96,19 @@ def run(req: GenRequest) -> str:
     params = _supported(pipe)
     gen = torch.Generator(device="cuda").manual_seed(int(req.seed))
 
-    kwargs: dict = {"prompt": req.prompt, "num_inference_steps": steps,
-                    "height": int(req.height), "width": int(req.width), "generator": gen}
-    if "negative_prompt" in params and req.negative_prompt:
-        kwargs["negative_prompt"] = req.negative_prompt
+    kwargs: dict = {"num_inference_steps": steps, "height": int(req.height),
+                    "width": int(req.width), "generator": gen}
+    kwargs[_first_supported(params, _PROMPT_NAMES) or "instruction"] = req.prompt
+    if req.negative_prompt and (ng := _first_supported(params, _NEGATIVE_NAMES)):
+        kwargs[ng] = req.negative_prompt
     if (tg := _first_supported(params, _TEXT_GUIDANCE_NAMES)):
         kwargs[tg] = text_cfg
 
     if variant.task == "edit":
-        images = [_fit_image(p, int(req.width), int(req.height)) for p in req.image_paths]
+        images = [_load_image(p) for p in req.image_paths]
         if (ik := _first_supported(params, _IMAGE_INPUT_NAMES)):
-            # plural input names take the list; a singular `image` takes one (or the list if 1+).
-            kwargs[ik] = images if ik != "image" or len(images) > 1 else images[0]
+            # singular `image` takes one PIL; plural names take the list of inputs.
+            kwargs[ik] = images[0] if ik == "image" and len(images) == 1 else images
         if (ig := _first_supported(params, _IMAGE_GUIDANCE_NAMES)):
             kwargs[ig] = float(req.image_guidance_scale)
 

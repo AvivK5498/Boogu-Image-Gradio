@@ -48,12 +48,13 @@ VARIANT_REGISTRY: dict[str, Variant] = {
     "turbo": Variant(
         id="turbo", label="Turbo — fast text→image (4 steps, distilled)",
         repo="Boogu/Boogu-Image-0.1-Turbo", task="t2i",
-        default_steps=4, default_cfg=0.0, fast=True,
+        # DMD student path requires text/image guidance == 1.0 (1.0 = no CFG), NOT 0.0.
+        default_steps=4, default_cfg=1.0, fast=True,
     ),
     "edit": Variant(
         id="edit", label="Edit — text + image → image",
         repo="Boogu/Boogu-Image-0.1-Edit", task="edit",
-        default_steps=50, default_cfg=5.0,
+        default_steps=50, default_cfg=4.0,
     ),
 }
 DEFAULT_VARIANT = "turbo"
@@ -65,8 +66,8 @@ DEFAULTS = {
     "height": 1024,
     "seed": 42,
     "num_inference_steps": 50,
-    "text_guidance_scale": 4.0,   # CFG for Base/Edit; Turbo overrides to 0.0
-    "image_guidance_scale": 1.5,  # Edit only
+    "text_guidance_scale": 4.0,   # CFG for Base/Edit; Turbo overrides to 1.0 (no CFG)
+    "image_guidance_scale": 1.0,  # Edit only
     "negative_prompt": "",
 }
 

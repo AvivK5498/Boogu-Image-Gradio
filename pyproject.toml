@@ -1,0 +1,21 @@
+[project]
+name = "boogu-image-gradio"
+version = "0.1.0"
+description = "Boogu-Image-0.1 full-model Gradio studio for a single H200 (bf16, no fp8)."
+requires-python = ">=3.10"
+dependencies = [
+    "gradio>=5.0",
+    "huggingface_hub>=0.27",
+    "pillow",
+]
+
+[project.optional-dependencies]
+# Heavy runtime deps (torch, diffusers, transformers, flash-attn) are provided by the
+# Docker image / setup.sh, not pip-installed here. dev = host-side test deps only.
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]

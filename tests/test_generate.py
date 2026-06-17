@@ -35,8 +35,9 @@ def test_apply_acceleration_teacache_single_stream():
     assert pipe.enable_taylorseer is False
 
 
-def test_default_acceleration_is_none():
-    assert config.DEFAULT_ACCELERATION == "none"
+def test_default_acceleration_is_taylorseer():
+    # Single-stream TaylorSeer: measured ~1.5x faster at ~56GB on the H200 (OOM-safe, no offload).
+    assert config.DEFAULT_ACCELERATION == "taylorseer"
 
 
 def test_acceleration_registry_and_default():

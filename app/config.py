@@ -61,16 +61,19 @@ DEFAULT_VARIANT = "turbo"
 
 # Step-caching accelerators (built into the `boogu` package; no extra deps). They reuse transformer
 # outputs across adjacent steps for faster multi-step (Base/Edit) gens. Mutually exclusive. We use
-# the SINGLE-STREAM variants only: the `*_for_all_layers` variants cache derivatives for every layer
-# and OOM a 141GB H200 on this 10B model. Default OFF — the plain path is already ~2.5s/step at 1024²
-# (FA fused). These remain opt-in/experimental and still raise memory. Ignored for Turbo (4-step DMD).
+# the SINGLE-STREAM variants only: the `*_for_all_layers` variants cache Taylor coefficients across
+# all 40 layers x ~5 tensors x every CFG branch and reach ~139GB -> OOM (they're meant to run WITH
+# CPU offload). Single-stream TaylorSeer measured ~1.5x faster at ~56GB on Edit 1024x576 — safe with
+# no offload, so it's the default. Ignored for Turbo (4-step DMD). See generate._apply_acceleration.
 ACCELERATION = {
-    "none": "None — full compute (default, ~2.5s/step @1024²)",
-    "taylorseer": "TaylorSeer (experimental, single-stream)",
-    "teacache": "TeaCache (experimental, single-stream)",
+    "taylorseer": "TaylorSeer — ~1.5× faster (default, single-stream)",
+    "none": "None — full compute every step",
+    "teacache": "TeaCache (single-stream, aggressive skip)",
 }
-DEFAULT_ACCELERATION = "none"
-TEACACHE_REL_L1_THRESH = 0.15
+DEFAULT_ACCELERATION = "taylorseer"
+# TeaCache only skips when accumulated rescaled-L1 distance exceeds this; 0.05 never skips (no
+# speedup). ~0.35 gives ~1.5x at some quality risk. TaylorSeer needs no threshold.
+TEACACHE_REL_L1_THRESH = 0.35
 
 
 # --------------------------------------------------------------------------- generation defaults

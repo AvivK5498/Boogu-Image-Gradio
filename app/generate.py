@@ -8,7 +8,6 @@ keeps the app correct even if the exact kwarg spelling differs from the docs.
 
 from __future__ import annotations
 
-import inspect
 import logging
 import random
 import time
@@ -19,14 +18,10 @@ from app.pipelines import MANAGER
 
 log = logging.getLogger(__name__)
 
-# Boogu's pipeline __call__ uses `instruction`/`negative_instruction`/`input_images` and the
-# *_guidance_scale names (confirmed by reading boogu/pipelines/boogu/pipeline_boogu.py). We still
-# resolve against the live signature so a future rename doesn't silently drop an argument.
-_TEXT_GUIDANCE_NAMES = ("text_guidance_scale", "true_cfg_scale", "guidance_scale")
-_IMAGE_GUIDANCE_NAMES = ("image_guidance_scale", "image_cfg_scale")
-_IMAGE_INPUT_NAMES = ("input_images", "image", "images")
-_PROMPT_NAMES = ("instruction", "prompt")
-_NEGATIVE_NAMES = ("negative_instruction", "negative_prompt")
+# Boogu's pipeline __call__ kwargs, confirmed by reading boogu/pipelines/boogu/pipeline_boogu.py:
+# instruction / negative_instruction / input_images / text_guidance_scale / image_guidance_scale /
+# num_inference_steps / generator / height / width. The Turbo subclass takes the same via *args/
+# **kwargs (so signature introspection would see only **kwargs — don't filter, pass names directly).
 
 
 @dataclass
@@ -42,16 +37,6 @@ class GenRequest:
     text_guidance_scale: float = config.DEFAULTS["text_guidance_scale"]
     image_guidance_scale: float = config.DEFAULTS["image_guidance_scale"]
     image_paths: list[str] = field(default_factory=list)   # edit: 1+ input images
-
-
-def _supported(pipe) -> set[str]:
-    """Parameter names accepted by the pipeline's __call__ (its forward signature)."""
-    return set(inspect.signature(pipe.__call__).parameters)
-
-
-def _first_supported(params: set[str], names: tuple[str, ...]) -> str | None:
-    """First candidate kwarg name the pipeline actually accepts (or None)."""
-    return next((n for n in names if n in params), None)
 
 
 def _load_image(path: str):
@@ -93,24 +78,21 @@ def run(req: GenRequest) -> str:
     import torch
 
     pipe = MANAGER.get(req.variant)
-    params = _supported(pipe)
     gen = torch.Generator(device="cuda").manual_seed(int(req.seed))
 
-    kwargs: dict = {"num_inference_steps": steps, "height": int(req.height),
-                    "width": int(req.width), "generator": gen}
-    kwargs[_first_supported(params, _PROMPT_NAMES) or "instruction"] = req.prompt
-    if req.negative_prompt and (ng := _first_supported(params, _NEGATIVE_NAMES)):
-        kwargs[ng] = req.negative_prompt
-    if (tg := _first_supported(params, _TEXT_GUIDANCE_NAMES)):
-        kwargs[tg] = text_cfg
-
+    kwargs: dict = {
+        "instruction": req.prompt,
+        "num_inference_steps": steps,
+        "height": int(req.height),
+        "width": int(req.width),
+        "text_guidance_scale": text_cfg,
+        "generator": gen,
+    }
+    if req.negative_prompt:
+        kwargs["negative_instruction"] = req.negative_prompt
     if variant.task == "edit":
-        images = [_load_image(p) for p in req.image_paths]
-        if (ik := _first_supported(params, _IMAGE_INPUT_NAMES)):
-            # singular `image` takes one PIL; plural names take the list of inputs.
-            kwargs[ik] = images[0] if ik == "image" and len(images) == 1 else images
-        if (ig := _first_supported(params, _IMAGE_GUIDANCE_NAMES)):
-            kwargs[ig] = float(req.image_guidance_scale)
+        kwargs["input_images"] = [_load_image(p) for p in req.image_paths]
+        kwargs["image_guidance_scale"] = float(req.image_guidance_scale)
 
     # Drop anything the pipeline doesn't accept (defensive against signature differences).
     kwargs = {k: v for k, v in kwargs.items() if k in params}

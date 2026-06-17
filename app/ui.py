@@ -51,6 +51,7 @@ def _detach_log_capture(handler) -> None:
 
 
 _VARIANT_CHOICES = [(v.label, vid) for vid, v in config.VARIANT_REGISTRY.items()]
+_ACCEL_CHOICES = [(label, key) for key, label in config.ACCELERATION.items()]
 
 
 def _status_text() -> str:
@@ -99,6 +100,9 @@ def build_app() -> gr.Blocks:
 
         with gr.Row():
             variant = gr.Dropdown(_VARIANT_CHOICES, value=default, label="Variant")
+            acceleration = gr.Dropdown(_ACCEL_CHOICES, value=config.DEFAULT_ACCELERATION,
+                                       label="Acceleration",
+                                       info="Step-caching for Base/Edit (ignored by Turbo)")
             dl_btn = gr.Button("⬇️ Download selected variant", variant="secondary")
         status = gr.Markdown(_status_text())
 
@@ -135,10 +139,10 @@ def build_app() -> gr.Blocks:
         variant.change(_on_variant_change, variant, [image_in, image_guidance, steps, text_guidance])
 
         scalar_inputs = [variant, prompt, negative, image_in, width, height, seed, randomize_seed,
-                         steps, text_guidance, image_guidance]
+                         steps, text_guidance, image_guidance, acceleration]
 
         def _generate(variant_v, prompt_v, negative_v, files_v, width_v, height_v, seed_v,
-                      randomize_v, steps_v, text_g_v, image_g_v):
+                      randomize_v, steps_v, text_g_v, image_g_v, accel_v):
             # gr.File(multiple) yields a list of file objects/paths (or None).
             paths = [getattr(f, "name", f) for f in (files_v or [])]
             req = GenRequest(
@@ -146,7 +150,7 @@ def build_app() -> gr.Blocks:
                 width=int(width_v), height=int(height_v), seed=int(seed_v),
                 randomize_seed=bool(randomize_v), num_inference_steps=int(steps_v),
                 text_guidance_scale=float(text_g_v), image_guidance_scale=float(image_g_v),
-                image_paths=paths,
+                image_paths=paths, acceleration=accel_v,
             )
             buf, handler = _attach_log_capture()
             result: dict = {}

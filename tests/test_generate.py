@@ -1,7 +1,43 @@
 import pytest
 
-from app import generate
+from app import config, generate
 from app.generate import GenRequest
+
+
+class _FakeT:
+    pass
+
+
+class _FakePipe:
+    def __init__(self):
+        self.transformer = _FakeT()
+
+
+def test_apply_acceleration_taylorseer_then_reset():
+    pipe = _FakePipe()
+    generate._apply_acceleration(pipe, "taylorseer")
+    assert pipe.enable_taylorseer is True
+    assert pipe.transformer.enable_taylorseer is True
+    assert pipe.transformer.enable_taylorseer_for_all_layers is True
+    # switching modes must reset prior flags
+    generate._apply_acceleration(pipe, "none")
+    assert pipe.enable_taylorseer is False
+    assert pipe.transformer.enable_taylorseer_for_all_layers is False
+    assert pipe.transformer.enable_teacache is False
+
+
+def test_apply_acceleration_teacache_sets_threshold():
+    pipe = _FakePipe()
+    generate._apply_acceleration(pipe, "teacache")
+    assert pipe.transformer.enable_teacache is True
+    assert pipe.transformer.enable_teacache_for_all_layers is True
+    assert pipe.transformer.teacache_rel_l1_thresh == config.TEACACHE_REL_L1_THRESH
+    assert pipe.enable_taylorseer is False
+
+
+def test_acceleration_registry_and_default():
+    assert set(config.ACCELERATION) == {"none", "taylorseer", "teacache"}
+    assert config.DEFAULT_ACCELERATION in config.ACCELERATION
 
 
 def test_edit_without_image_raises_before_torch():

@@ -37,6 +37,7 @@ class GenRequest:
     text_guidance_scale: float = config.DEFAULTS["text_guidance_scale"]
     image_guidance_scale: float = config.DEFAULTS["image_guidance_scale"]
     image_paths: list[str] = field(default_factory=list)   # edit: 1+ input images
+    acceleration: str = config.DEFAULT_ACCELERATION         # none | taylorseer | teacache
 
 
 class _StepBar:
@@ -73,6 +74,27 @@ class _StepBar:
 
     def close(self):
         pass
+
+
+def _apply_acceleration(pipe, mode: str) -> None:
+    """Toggle Boogu's step-caching on the resident pipeline (idempotent). Always resets first so
+    switching modes between runs takes effect. Flags set on both pipeline and transformer because
+    TaylorSeer's master flag lives on the pipeline while the transformer reads its own attrs."""
+    t = pipe.transformer
+    pipe.enable_taylorseer = False
+    t.enable_taylorseer = False
+    t.enable_taylorseer_for_all_layers = False
+    t.enable_teacache = False
+    t.enable_teacache_for_all_layers = False
+    if mode == "taylorseer":
+        pipe.enable_taylorseer = True
+        t.enable_taylorseer = True
+        t.enable_taylorseer_for_all_layers = True
+    elif mode == "teacache":
+        t.enable_teacache = True
+        t.enable_teacache_for_all_layers = True
+        t.teacache_rel_l1_thresh = config.TEACACHE_REL_L1_THRESH
+    log.info("Acceleration: %s", mode)
 
 
 def _install_step_logger(pipe) -> None:
@@ -128,6 +150,8 @@ def run(req: GenRequest) -> str:
 
     pipe = MANAGER.get(req.variant)
     _install_step_logger(pipe)
+    # Turbo's 4-step DMD loop doesn't benefit from step-caching, so force it off there.
+    _apply_acceleration(pipe, "none" if variant.fast else req.acceleration)
     gen = torch.Generator(device="cuda").manual_seed(int(req.seed))
 
     kwargs: dict = {

@@ -59,6 +59,18 @@ VARIANT_REGISTRY: dict[str, Variant] = {
 }
 DEFAULT_VARIANT = "turbo"
 
+# Step-caching accelerators (built into the `boogu` package; no extra deps). They reuse transformer
+# outputs across adjacent steps -> faster multi-step (Base/Edit) gens. Mutually exclusive. TaylorSeer
+# is training-free and generally safe; TeaCache is threshold-tunable (higher = more skipping/faster,
+# lower quality). Ignored for Turbo (its 4-step DMD loop doesn't benefit). See pipelines/generate.
+ACCELERATION = {
+    "taylorseer": "TaylorSeer (fast, training-free) — recommended",
+    "teacache": "TeaCache (faster, may soften detail)",
+    "none": "None (full compute every step)",
+}
+DEFAULT_ACCELERATION = "taylorseer"
+TEACACHE_REL_L1_THRESH = 0.15
+
 
 # --------------------------------------------------------------------------- generation defaults
 DEFAULTS = {

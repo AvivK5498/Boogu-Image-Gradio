@@ -18,6 +18,9 @@ export GRADIO_SSR_MODE=False   # Gradio 6 defaults SSR on (Node sidecar) -> brea
 export BOOGU_WORKSPACE="${BOOGU_WORKSPACE:-/workspace}"
 export HF_HOME="${HF_HOME:-$BOOGU_WORKSPACE/.hf}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
+# Boogu gates its fused FlashAttention-SwiGLU + Triton-RMSNorm on `device` containing "cuda" AT
+# IMPORT TIME (block_lumina2.py / transformer_boogu.py). Export it so those fast paths are taken.
+export device="${device:-cuda:0}"
 # Optional token (Boogu is ungated, but a token gives faster/authenticated downloads).
 export HUGGING_FACE_HUB_TOKEN="${HF_TOKEN:-${HUGGING_FACE_HUB_TOKEN:-}}"
 

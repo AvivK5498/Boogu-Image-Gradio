@@ -3,15 +3,16 @@
 A Gradio app to run **Boogu-Image-0.1 at full extent** — full bf16 weights, **no fp8/quantization**.
 Text→image (**Base**, quality · **Turbo**, 4-step fast) and text+image→image (**Edit**), with a
 variant selector that auto-downloads on demand, multi-image editing, full settings, and a live
-inference log. Built on the official diffusers pipeline (`BooguImagePipeline` /
-`BooguImageTurboPipeline`, `trust_remote_code`) — not ComfyUI.
+inference log. Built on the official `boogu` package pipelines (`BooguImagePipeline` /
+`BooguImageTurboPipeline`) — not ComfyUI.
 
 ## Quick start
 
-1. **Launch a GPU pod** from an **NVIDIA NGC PyTorch** image — recommended `nvcr.io/nvidia/pytorch:25.10-py3`
-   (CUDA 13 / torch 2.9 / py3.12). Sized for an **H200 SXM** (Hopper, FA via prebuilt wheel); the 10B
-   model is ~20GB in bf16 so any ≥24GB GPU also works (smaller GPUs can offload — not wired into the UI).
-   Optional: mount a network volume at `/workspace` (persists your outputs).
+1. **Launch a GPU pod.** Boogu supports **CUDA ≤ 12.8 / torch ≤ 2.11** — do **not** use a CUDA-13 image
+   (NGC 25.x); flash-attn + the custom ops won't match. Verified on **`runpod/pytorch:1.0.6-cu1281-torch271-ubuntu2204`**
+   (CUDA 12.8.1 / torch 2.7.1 — Boogu's tested env, and it runs sshd). Sized for an **H200 SXM** (Hopper,
+   FA via prebuilt wheel); the 10B model is ~20GB in bf16 so any ≥24GB GPU also works (smaller GPUs can
+   offload — not wired into the UI). Optional: mount a network volume at `/workspace` (persists your outputs).
 2. **Clone + run:**
    ```bash
    git clone https://github.com/AvivK5498/Boogu-Image-Gradio.git
@@ -47,10 +48,12 @@ the resident pipeline. Turbo hides the steps/CFG fields (they're fixed by the di
 
 ## How calls are dispatched
 
-The HF card documents only `pipe(prompt)`, so `generate.py` introspects each pipeline's `__call__`
-signature and passes only the arguments it accepts — mapping guidance to whichever of
-`text_guidance_scale` / `true_cfg_scale` / `guidance_scale` exists, and the Edit input to
-`image` / `images` / `input_images`. So the app stays correct even if the exact kwarg spelling differs.
+The pipeline `__call__` uses Boogu's own argument names (verified against
+`boogu/pipelines/boogu/pipeline_boogu.py`): **`instruction`**, `negative_instruction`, `input_images`
+(a list of PIL images for Edit), `text_guidance_scale`, `image_guidance_scale`, `num_inference_steps`,
+`generator`, `height`, `width`; output is `result.images`. Turbo is the `BooguImageTurboPipeline`
+subclass (DMD few-step) and needs **text/image guidance = 1.0** (1.0 = no CFG — the model card's "0.0"
+is misleading); the app sets that automatically.
 
 ## Constraints
 
